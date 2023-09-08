@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-storage
+  labels:
+    type: nfs
+spec:
+  capacity:
+    storage: 64Gi
+  accessModes: ["ReadWriteMany"]
+  nfs:
+    server: 192.168.25.42
+    path: /volume1/web/DockerPV/test

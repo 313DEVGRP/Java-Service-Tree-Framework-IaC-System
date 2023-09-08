@@ -1,0 +1,462 @@
+version: '3.6'
+
+services:
+
+  jira:
+    image: 313devgrp/jira:12.14
+    ports:
+      - "48080:48080"
+    volumes: 
+      - jiraHome:/web/atlassian-jira-5.2.11-standalone/home
+      - jiraServer:/web/atlassian-jira-5.2.11-standalone/bin
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s1]
+    networks: &devtool-network
+      - dev_network
+    extra_hosts: &devtool-addhost
+      - "313.co.kr:192.168.25.31"
+      - "db.313.co.kr:192.168.25.40"
+      - "nas.313.co.kr:192.168.25.42"
+      - "www.313.co.kr:192.168.25.31"
+      - "ubuntu.313.co.kr:192.168.25.31"
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: jira
+
+  confluence:
+    image: 313devgrp/confluence:12.14
+    ports:
+      - "58090:58090"
+    volumes: 
+      - confluenceHome:/web/atlassian-confluence-4.3.7/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s1]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: confluence
+
+  fecru:
+    image: 313devgrp/fecru:13.02
+    ports:
+      - "8060:8060"
+    volumes: 
+      - fecruHome:/web/fecru-3.3.3/var
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: fecru
+
+  sonarqube:
+    image: sonarqube:9.9.1-community
+    ports:
+      - "9090:9000"
+    environment:
+      #SONAR_WEB_CONTEXT: /sonar - sonarqubeConf 처리
+      SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonarqube
+      SONAR_JDBC_USERNAME: postgresuser
+      SONAR_JDBC_PASSWORD: postgresuserpass
+    volumes:
+      - sonarqubeConf:/opt/sonarqube/conf
+      - sonarqubeData:/opt/sonarqube/data
+      - sonarqubeExtensions:/opt/sonarqube/extensions
+      - sonarqubeLogs:/opt/sonarqube/logs
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: sonarqube
+
+  postgres:
+    image: postgres:12.15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgresuser
+      POSTGRES_PASSWORD: postgresuserpass
+      POSTGRES_DB: sonarqube
+    volumes:
+      - postgrespv:/var/lib/postgresql/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: postgres
+
+  pgadmin:
+    image: dockage/phppgadmin:latest
+    ports:
+      - "54321:80"
+    environment:
+      - PHP_PG_ADMIN_SERVER_DESC=PostgreSQL
+      - PHP_PG_ADMIN_SERVER_HOST=postgres
+      - PHP_PG_ADMIN_SERVER_PORT=5432
+      - PHP_PG_ADMIN_SERVER_SSL_MODE=allow
+      - PHP_PG_ADMIN_SERVER_DEFAULT_DB=template1
+      - PHP_PG_ADMIN_SERVER_PG_DUMP_PATH=/usr/bin/pg_dump
+      - PHP_PG_ADMIN_SERVER_PG_DUMPALL_PATH=/usr/bin/pg_dumpall
+      - PHP_PG_ADMIN_DEFAULT_LANG=auto
+      - PHP_PG_ADMIN_AUTO_COMPLETE=default on
+      - PHP_PG_ADMIN_EXTRA_LOGIN_SECURITY=false
+      - PHP_PG_ADMIN_OWNED_ONLY=false
+      - PHP_PG_ADMIN_SHOW_COMMENTS=true
+      - PHP_PG_ADMIN_SHOW_ADVANCED=false
+      - PHP_PG_ADMIN_SHOW_SYSTEM=false
+      - PHP_PG_ADMIN_MIN_PASSWORD_LENGTH=1
+      - PHP_PG_ADMIN_LEFT_WIDTH=200
+      - PHP_PG_ADMIN_THEME=default
+      - PHP_PG_ADMIN_SHOW_OIDS=false
+      - PHP_PG_ADMIN_MAX_ROWS=30
+      - PHP_PG_ADMIN_MAX_CHARS=50
+      - PHP_PG_ADMIN_USE_XHTML_STRICT=false
+      - PHP_PG_ADMIN_HELP_BASE=http://www.postgresql.org/docs/%s/interactive/
+      - PHP_PG_ADMIN_AJAX_REFRESH=3
+      - PHP_PG_ADMIN_URL_PREFIX=/pgadmin
+    volumes:
+      - pgadmindata:/var/www
+      - pgadminconf:/etc/nginx
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: pgadmin
+
+  jenkins:
+    image: jenkins/jenkins:2.319.3-lts
+    environment:
+      JAVA_OPTS: "-Xms1g -Xmx1g -XX:+UseG1GC -Dfile.encoding=UTF-8 -Dhudson.security.csrf.GlobalCrumbIssuerConfiguration.DISABLE_CSRF_PROTECTION=true"
+      JENKINS_OPTS: "--prefix=/jenkins"
+    ports:
+      - "38080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkinsHome:/var/jenkins_home
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s3]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: jenkins
+
+  zipkin:
+    image: openzipkin/zipkin:2.23.16
+    ports:
+      - 9411:9411
+    volumes: 
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - STORAGE_TYPE=elasticsearch
+      # Point the zipkin at the storage b'ackend
+      - ES_HOSTS=192.168.25.31:9300
+      # Uncomment to see requests to and from elasticsearch
+      # - ES_HTTP_LOGGING=BODY
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s3]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: zipkin
+
+  zipkinDependencies:
+    image: openzipkin/zipkin-dependencies:2.6.4
+    entrypoint: crond -f
+    environment:
+      - STORAGE_TYPE=elasticsearch
+      - "ES_HOSTS=192.168.25.31:9300"
+      - "ES_NODES_WAN_ONLY=true"
+    volumes: 
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s3]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: zipkinDependencies
+
+  gnuboard:
+    image: 313devgrp/gnuboard:1.0.0
+    ports:
+      - "888:80"
+    volumes: 
+      - gnuboard:/var/www/html
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: gnuboard
+
+  jrebel:
+    image: 313devgrp/jrebel:2018.07.12
+    ports:
+      - "31301:8888"
+    volumes: 
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: jrebel
+
+  nexus:
+    image: sonatype/nexus3:3.59.0
+    ports:
+      - "8081:8081"
+      - "5550:5550"
+      - "5551:5551"
+    environment:
+      - NEXUS_CONTEXT=nexus
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - nexusData:/nexus-data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s3]
+    networks: *devtool-network
+    extra_hosts: *devtool-addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 192.168.25.32:24224
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: nexus
+
+
+volumes:
+
+  pgadminconf:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/pgadmin/conf"
+
+  pgadmindata:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/pgadmin/data"
+
+  postgrespv:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/postgres"
+
+  sonarqubeConf:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/sonarqube/conf"
+
+  sonarqubeData:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/sonarqube/data"
+
+  sonarqubeExtensions:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/sonarqube/extensions"
+
+  sonarqubeLogs:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/sonarqube/logs"
+
+  nexusData:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/nexusData"
+
+  jenkinsHome:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/jenkins"
+
+  jiraHome:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/jira"
+
+  jiraServer:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/jira_server"
+
+  confluenceHome:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/confluence"
+
+  fecruHome:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/fecru"
+
+  gnuboard:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/gnuboard"
+
+  sonarHome:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/devtool/sonar"
+
+networks:
+  dev_network:
+    attachable: true
