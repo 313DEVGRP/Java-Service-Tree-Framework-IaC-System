@@ -9,10 +9,7 @@ services:
   traefik:
     image: traefik:v2.10.4
     ports:
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: host
+      - 80:80
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
@@ -34,15 +31,21 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.http.services.traefik.loadbalancer.server.port=80"
-        - "traefik.http.routers.traefik.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
-        - "traefik.http.routers.traefik.service=api@internal"
-        - "traefik.http.routers.traefik.middlewares=auth"
+        - "traefik.http.routers.dashboard.rule=PathPrefix(`/api`, `/dashboard`)"
+        - "traefik.http.routers.dashboard.service=api@internal"
+        - "traefik.http.routers.dashboard.entrypoints=web"
+        - "traefik.http.routers.dashboard.middlewares=auth"
         - "traefik.http.middlewares.auth.basicauth.users=test:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/"
     command:
       - "--providers.docker"
       - "--api.dashboard=true"
       - "--api.insecure=true"
       - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedbydefault=false"
+      # Configure entrypoint
+      - "--entrypoints.web.address=:80"
+      # Logging
+      - "--accesslog"
       - "--log.level=INFO"
 
   nginx:
@@ -55,11 +58,15 @@ services:
     networks: &allinoneNetwork
       - allinoneNetwork
     extra_hosts: *addhost
+    depends_on:
+      - keycloak
     deploy:
       mode: global
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.nginx.rule=PathPrefix(`/`) || PathPrefix(`/auth-anon`) || PathPrefix(`/auth-user`) || PathPrefix(`/auth-admin`)"
+        - "traefik.http.routers.nginx.rule=PathPrefix(`/`)"
+        - "traefik.http.routers.nginx.service=nginx"
+        - "traefik.http.routers.nginx.entrypoints=web"
         - "traefik.http.services.nginx.loadbalancer.server.port=80"
     logging:
       driver: fluentd
@@ -777,6 +784,7 @@ services:
       #- VIRTUAL_HOST=http://www.313.co.kr
     depends_on:
       - mysql
+      - traefik
     volumes:
       - keycloak:/opt/jboss/keycloak/standalone/deployments
       - keycloakThemes:/opt/jboss/keycloak/themes
@@ -787,10 +795,6 @@ services:
       replicas: 1
       placement:
         constraints: [node.hostname == k8s3]
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.keycloak.rule=PathPrefix(`/auth`)"
-        - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging:
@@ -1594,7 +1598,7 @@ services:
 
 
   middle-proxy:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.6
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.7
     ports:
       - 13131:13131
     volumes:
@@ -1614,7 +1618,7 @@ services:
         tag: middleproxy
 
   backend-core:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.19
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.36
     ports:
       - 31313:31313
     volumes:
@@ -1634,7 +1638,7 @@ services:
         tag: backendcore
 
   engine-fire:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.16
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.26
     ports:
       - 33333:33333
     volumes:
