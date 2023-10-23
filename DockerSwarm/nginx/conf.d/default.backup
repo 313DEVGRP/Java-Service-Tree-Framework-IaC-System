@@ -1,0 +1,403 @@
+server {
+    listen       80;
+    listen  [::]:80;
+    server_name  localhost;
+
+    #charset koi8-r;
+    #access_log  /var/log/nginx/host.access.log  main;
+
+	client_max_body_size 1G;
+		
+	location /auth-anon {
+		proxy_pass http://192.168.25.31:13131/auth-anon;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /auth-user {
+		proxy_pass http://192.168.25.31:13131/auth-user;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /auth-admin {
+		proxy_pass http://192.168.25.31:13131/auth-admin;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /auth-check {
+		proxy_pass http://192.168.25.31:13131/auth-check;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /oauth2 {
+		proxy_pass http://192.168.25.31:13131/oauth2;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /login {
+		proxy_pass http://192.168.25.31:13131/login;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /logout {
+		proxy_pass http://192.168.25.31:13131/logout;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /dwr {
+		proxy_pass http://192.168.25.31:31313/dwr;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /swagger-ui.html {
+		proxy_pass http://192.168.25.31:31313/swagger-ui.html;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /httpk8s {
+		return 301 http://www.313.co.kr:31380;
+	}
+	
+	location /httpsk8s {
+		return 301 https://www.313.co.kr:31443;
+	}
+	
+	location /em {
+		return 301 https://www.313.co.kr:1158/em;
+	}
+	
+	location /nas {
+		return 301 http://www.313.co.kr:5000;
+	}
+	
+	location /portainer/ {
+		proxy_pass http://portainer:9000/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /elastichq/ {
+		proxy_pass http://192.168.25.31:5050/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /redis {
+		proxy_pass http://192.168.25.31:8786/redis;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /auth {
+		proxy_pass http://192.168.25.31:8585/auth;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /jira {
+		proxy_pass http://192.168.25.31:48080/jira;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /confluence {
+		proxy_pass http://192.168.25.31:58090/confluence;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /fecru {
+		proxy_pass http://192.168.25.31:8060/fecru;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /jenkins {
+		proxy_pass http://192.168.25.31:38080/jenkins;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /sonar {
+		proxy_pass http://192.168.25.31:9090/sonar;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /logstash/ {
+		proxy_pass http://192.168.25.31:9600/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /elasticsearch/ {
+		proxy_pass http://192.168.25.31:9200/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /nexus {
+		proxy_pass http://192.168.25.31:8081/nexus;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;		
+	}
+	
+	location /guacamole {
+		proxy_pass http://192.168.25.31:8282/guacamole;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /zipkin {
+		proxy_pass http://192.168.25.31:9411/zipkin;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /phpmyadmin {
+		proxy_pass http://192.168.25.31:33306/phpmyadmin;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /pgadmin {
+		proxy_pass http://192.168.25.31:54321/pgadmin;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /minio {
+		proxy_pass http://192.168.25.31:62222/minio;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /kibana {
+		proxy_pass http://192.168.25.31:5601/kibana;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /grafana {
+		proxy_pass http://192.168.25.31:3000/grafana;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /spinnaker/ {
+		proxy_pass http://192.168.25.31:9000/spinnaker/;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /gate {
+		proxy_pass http://192.168.25.31:8084;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+	location /mail {
+		proxy_pass http://192.168.25.42/mail;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+	}
+	
+#		location /roles/sync {
+#		proxy_redirect		off;
+
+#		proxy_pass http://fiat:7003;
+#		#proxy_http_version  1.1;
+
+#		#proxy_set_header Upgrade           		$http_upgrade;
+#		#proxy_set_header Connection        		"upgrade";
+#		proxy_set_header Host              			$host;
+#		proxy_set_header X-Real-IP         			$remote_addr;
+#		proxy_set_header X-Forwarded-For   		$proxy_add_x_forwarded_for;
+#		proxy_set_header X-Forwarded-Server   	$proxy_add_x_forwarded_for;
+#		proxy_set_header X-Forwarded-Proto 		$scheme;
+#		proxy_set_header X-Forwarded-Host  		$host;
+#		#proxy_set_header X-Forwarded-Port  	$server_port;
+			
+#		proxy_connect_timeout	1800;
+#		proxy_send_timeout		1800;
+#		proxy_read_timeout		1800;
+#		proxy_buffers				4 32k;
+			
+#		client_max_body_size		100m;
+#		client_body_buffer_size	128k;
+#	}
+		
+#	location /roles {
+		
+#		if ($request_method = POST ) {
+#			return 200;
+#		}
+#		if ($request_method = DELETE ) {
+#			return 200;
+#		}
+#		proxy_redirect		off;
+
+#		proxy_pass http://fiat:7003;
+#		#proxy_http_version  1.1;
+
+#		#proxy_set_header Upgrade           		$http_upgrade;
+#		#proxy_set_header Connection        		"upgrade";
+#		proxy_set_header Host              			$host;
+#		proxy_set_header X-Real-IP         			$remote_addr;
+#		proxy_set_header X-Forwarded-For   		$proxy_add_x_forwarded_for;
+#		proxy_set_header X-Forwarded-Server   	$proxy_add_x_forwarded_for;
+#		proxy_set_header X-Forwarded-Proto 		$scheme;
+#		proxy_set_header X-Forwarded-Host  		$host;
+#		#proxy_set_header X-Forwarded-Port  	$server_port;
+		
+#		proxy_connect_timeout	1800;
+#		proxy_send_timeout		1800;
+#		proxy_read_timeout		1800;
+#		proxy_buffers				4 32k;
+			
+#		client_max_body_size		100m;
+#		client_body_buffer_size	128k;
+#	}
+		
+	location / {
+		root   /usr/share/nginx/html;
+		index  index.html index.htm;
+		add_header Cache-Control "max-age=60";
+		access_log off;
+	}
+
+    error_page	404	/404.html;
+	location = /404.html {
+		root   /usr/share/nginx/html;
+	}
+
+    # redirect server error pages to the static page /50x.html
+    #
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+
+    # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+    #
+    #location ~ \.php$ {
+    #    proxy_pass   http://127.0.0.1;
+    #}
+
+    # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+    #
+    #location ~ \.php$ {
+    #    root           html;
+    #    fastcgi_pass   127.0.0.1:9000;
+    #    fastcgi_index  index.php;
+    #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+    #    include        fastcgi_params;
+    #}
+
+    # deny access to .htaccess files, if Apache's document root
+    # concurs with nginx's one
+    #
+    #location ~ /\.ht {
+    #    deny  all;
+    #}
+}
+
