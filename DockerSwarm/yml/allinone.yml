@@ -1,25 +1,24 @@
 version: '3.6'
 
-#docker login domain:5550
+#hosts ( 127.0.0.1 313.co.kr )
+#docker login 313.co.kr:5550 ( admin / qwe123 )
 #ln -s /nfs/DockerPV/allinone/jenkins_agent/jenkins_home_3 jenkins_home
 
 services:
 
-######################################### Global Service #########################################
-
-  agent:
-    image: portainer/agent:2.11.0
-    #environment:
-      # REQUIRED: Should be equal to the service name prefixed by "tasks." when
-      # deployed inside an overlay network
-      #- "AGENT_CLUSTER_ADDR=tasks.agent"
-      #- "AGENT_PORT=9001"
-      #- "LOG_LEVEL=debug"
+  traefik:
+    image: traefik:v2.10.4
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker/volumes:/var/lib/docker/volumes
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    environment:
+      - "TZ=Asia/Seoul"
     networks: &allinoneNetwork
       - allinoneNetwork
     extra_hosts: &addhost
@@ -27,16 +26,72 @@ services:
       - "db.313.co.kr:192.168.25.40"
       - "nas.313.co.kr:192.168.25.42"
       - "www.313.co.kr:192.168.25.31"
-      - "ubuntu.313.co.kr:192.168.25.31"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s1]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.services.traefik.loadbalancer.server.port=80"
+        - "traefik.http.routers.traefik.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+        - "traefik.http.routers.traefik.service=api@internal"
+        - "traefik.http.routers.traefik.middlewares=auth"
+        - "traefik.http.middlewares.auth.basicauth.users=test:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/"
+    command:
+      - "--providers.docker"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker.swarmMode=true"
+      - "--log.level=INFO"
+
+  nginx:
+    image: nginx:1.19.10
+    volumes:
+      - nginxConf:/etc/nginx
+      - nginxWWW:/usr/share/nginx/html
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks: &allinoneNetwork
+      - allinoneNetwork
+    extra_hosts: *addhost
+    deploy:
+      mode: global
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.nginx.rule=PathPrefix(`/`) || PathPrefix(`/auth-anon`) || PathPrefix(`/auth-user`) || PathPrefix(`/auth-admin`)"
+        - "traefik.http.services.nginx.loadbalancer.server.port=80"
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 313.co.kr:24224
+        fluentd-async-connect: "true"
+        tag: nginx
+
+  ######################################### Global Service #########################################
+
+  agent:
+    image: portainer/agent:2.11.0
+      #environment:
+      # REQUIRED: Should be equal to the service name prefixed by "tasks." when
+      # deployed inside an overlay network
+      #- "AGENT_CLUSTER_ADDR=tasks.agent"
+      #- "AGENT_PORT=9001"
+    #- "LOG_LEVEL=debug"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks: *allinoneNetwork
+    extra_hosts: *addhost
     deploy:
       mode: global
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: portaineragent
 
   portainer:
@@ -60,10 +115,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: portainer
 
   grafana:
@@ -102,10 +155,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: grafana
 
   prometheus:
@@ -124,13 +175,13 @@ services:
       #placement:
       #  constraints:
       #    - node.role == manager
-#      resources:
-#            limits:
-#              cpus: "0.50"
-#              memory: 2048M
-#            reservations:
-#              cpus: "0.10"
-#              memory: 1024M
+    #      resources:
+    #            limits:
+    #              cpus: "0.50"
+    #              memory: 2048M
+    #            reservations:
+    #              cpus: "0.10"
+    #              memory: 1024M
     volumes:
       - type: volume
         source: prometheus-data
@@ -142,10 +193,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: prometheus
 
   cadvisor:
@@ -153,11 +202,11 @@ services:
     command: -logtostderr -docker_only
     deploy:
       mode: global
-#      resources:
-#        limits:
-#          memory: 128M
-#        reservations:
-#          memory: 64M
+    #      resources:
+    #        limits:
+    #          memory: 128M
+    #        reservations:
+    #          memory: 64M
     volumes:
       - type: bind
         source: /
@@ -178,7 +227,7 @@ services:
       - type: bind
         source: /dev/disk
         target: /dev/disk
-        read_only: true    
+        read_only: true
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     networks: *allinoneNetwork
@@ -186,10 +235,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: cadvisor
 
   node-exporter:
@@ -201,11 +248,11 @@ services:
       - '--no-collector.ipvs'
     deploy:
       mode: global
-#      resources:
-#        limits:
-#          memory: 128M
-#        reservations:
-#          memory: 64M
+    #      resources:
+    #        limits:
+    #          memory: 128M
+    #        reservations:
+    #          memory: 64M
     volumes:
       - type: bind
         source: /
@@ -226,13 +273,11 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: nodeexporter
 
-######################################### ELFK #########################################
+  ######################################### ELFK #########################################
 
   es-master-01:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELKVERSION:-7.17.13}
@@ -322,7 +367,7 @@ services:
     configs: *eslimitsConf
     networks: *allinoneNetwork
     extra_hosts: *addhost
-    deploy: 
+    deploy:
       endpoint_mode: dnsrr
       mode: replicated
       replicas: 1
@@ -501,9 +546,6 @@ services:
   es-coordinating:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELKVERSION:-7.17.13}
     hostname: es-coordinating
-    #ports:
-    #  - 9200:9200
-    #  - 9300:9300
     ports:
       - target: 9200
         published: 9200
@@ -564,10 +606,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: elastichq
 
   kibana:
@@ -594,10 +634,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: kibana
 
   logstash:
@@ -626,10 +664,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: logstash
 
   apm-server:
@@ -650,14 +686,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: apmserver
 
   fluentd:
-    image: 313.co.kr:5550/313devgrp/fluentd:3.1.3
+    image: 313.co.kr:5550/313devgrp/fluentd:3.1.5
     ports:
       - 24224:24224
       - 24224:24224/udp
@@ -670,16 +704,16 @@ services:
       replicas: 1
       placement:
         constraints: [node.hostname == k8s3]
-#      resources:
-#        limits:
-#          memory: 1024M
-#        reservations:
-#          memory: 512M
+    #      resources:
+    #        limits:
+    #          memory: 1024M
+    #        reservations:
+    #          memory: 512M
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging: *allinoneLogging
 
-######################################### Auth #########################################
+  ######################################### Auth #########################################
   guacd:
     image: guacamole/guacd
     ports:
@@ -697,10 +731,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: guacd
 
   guacamole:
@@ -725,10 +757,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: guacamole
 
   keycloak:
@@ -744,9 +774,7 @@ services:
       - JDBC_PARAMS=serverTimezone=UTC&connectTimeout=30000
       #- KEYCLOAK_FRONTEND_URL=http://www.313.co.kr/auth
       #- PROXY_ADDRESS_FORWARDING=true
-      #- VIRTUAL_HOST=http://www.a-rms.net
-    ports:
-      - "8585:8080"
+      #- VIRTUAL_HOST=http://www.313.co.kr
     depends_on:
       - mysql
     volumes:
@@ -759,15 +787,17 @@ services:
       replicas: 1
       placement:
         constraints: [node.hostname == k8s3]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.keycloak.rule=PathPrefix(`/auth`)"
+        - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: keycloak
 
   phpmyadmin:
@@ -786,22 +816,20 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: phpmyadmin
 
 
-# create database keycloakdb character set utf8 collate utf8_bin;
-# GRANT ALL PRIVILEGES ON keycloakdb.* TO 'mysqluser'@'%';
-# create database gnuboard character set utf8 collate utf8_bin;
-# GRANT ALL PRIVILEGES ON gnuboard.* TO 'mysqluser'@'%';
-# create database aRMS character set utf8 collate utf8_bin;
-# GRANT ALL PRIVILEGES ON aRMS.* TO 'mysqluser'@'%';
-# create database sonarqube character set utf8 collate utf8_bin;
-# GRANT ALL PRIVILEGES ON sonarqube.* TO 'mysqluser'@'%';
-# flush privileges;
+  # create database keycloakdb character set utf8 collate utf8_bin;
+  # GRANT ALL PRIVILEGES ON keycloakdb.* TO 'mysqluser'@'%';
+  # create database gnuboard character set utf8 collate utf8_bin;
+  # GRANT ALL PRIVILEGES ON gnuboard.* TO 'mysqluser'@'%';
+  # create database aRMS character set utf8 collate utf8_bin;
+  # GRANT ALL PRIVILEGES ON aRMS.* TO 'mysqluser'@'%';
+  # create database sonarqube character set utf8 collate utf8_bin;
+  # GRANT ALL PRIVILEGES ON sonarqube.* TO 'mysqluser'@'%';
+  # flush privileges;
   mysql:
     image: mysql:5.7.34
     ports:
@@ -907,19 +935,17 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: mysql
 
-######################################### DevTool #########################################
-  
+  ######################################### DevTool #########################################
+
   jira:
     image: 313devgrp/jira:12.14
     ports:
       - "48080:48080"
-    volumes: 
+    volumes:
       - jiraHome:/web/atlassian-jira-5.2.11-standalone/home
       - jiraServer:/web/atlassian-jira-5.2.11-standalone/bin
       - /etc/timezone:/etc/timezone:ro
@@ -934,17 +960,15 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: jira
 
   confluence:
     image: 313devgrp/confluence:12.14
     ports:
       - "58090:58090"
-    volumes: 
+    volumes:
       - confluenceHome:/web/atlassian-confluence-4.3.7/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -958,17 +982,15 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: confluence
 
   fecru:
     image: 313devgrp/fecru:13.02
     ports:
       - "8060:8060"
-    volumes: 
+    volumes:
       - fecruHome:/web/fecru-3.3.3/var
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -982,10 +1004,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: fecru
 
   sonarqube:
@@ -1014,10 +1034,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: sonarqube
 
   postgres:
@@ -1042,10 +1060,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: postgres
 
   pgadmin:
@@ -1092,10 +1108,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: pgadmin
 
   jenkins:
@@ -1120,39 +1134,34 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: jenkins
 
   zipkin:
     image: openzipkin/zipkin:2.23.16
     ports:
       - 9411:9411
-    volumes: 
+    volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     environment:
       - STORAGE_TYPE=elasticsearch
-      # Point the zipkin at the storage b'ackend
-      - ES_HOSTS=es-coordinating:9300
-      # Uncomment to see requests to and from elasticsearch
-      # - ES_HTTP_LOGGING=BODY
+      - ES_HOSTS=es-coordinating:9200
     deploy:
       mode: replicated
       replicas: 1
       placement:
         constraints: [node.hostname == k8s3]
     networks: *allinoneNetwork
+    healthcheck:
+      disable: true
     extra_hosts: *addhost
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: zipkin
 
   zipkinDependencies:
@@ -1160,9 +1169,9 @@ services:
     entrypoint: crond -f
     environment:
       - STORAGE_TYPE=elasticsearch
-      - "ES_HOSTS=es-coordinating:9300"
+      - "ES_HOSTS=es-coordinating:9200"
       - "ES_NODES_WAN_ONLY=true"
-    volumes: 
+    volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     deploy:
@@ -1175,17 +1184,15 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: zipkinDependencies
 
   gnuboard:
     image: 313devgrp/gnuboard:1.0.0
     ports:
       - "888:80"
-    volumes: 
+    volumes:
       - gnuboard:/var/www/html
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -1199,17 +1206,15 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: gnuboard
 
   jrebel:
     image: 313devgrp/jrebel:2018.07.12
     ports:
       - "31301:8888"
-    volumes: 
+    volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     deploy:
@@ -1222,10 +1227,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: jrebel
 
   nexus:
@@ -1250,35 +1253,11 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: nexus
 
-######################################### Spinnaker #########################################
-
-  nginx:
-    image: nginx:1.19.10
-    ports:
-      - 80:80
-    volumes:
-      - nginxConf:/etc/nginx
-      - nginxWWW:/usr/share/nginx/html
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    networks: *allinoneNetwork
-    extra_hosts: *addhost
-    deploy:
-      mode: global
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: fluentd:24224
-        fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
-        tag: nginx
+  ######################################### Spinnaker #########################################
 
   halyard:
     image: us-docker.pkg.dev/spinnaker-community/docker/halyard:0.41.0
@@ -1301,10 +1280,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: halyard
 
   clouddriver:
@@ -1326,17 +1303,15 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: clouddriver
 
   deck:
     image: us-docker.pkg.dev/spinnaker-community/docker/deck:2.1.0-20180221143146
     ports:
       - 9000:9000
-#    extra_hosts: *addHost
+    #    extra_hosts: *addHost
     volumes:
       - config-spinnaker-volume:/opt/spinnaker/config
       - deck-html-volume:/opt/deck/html
@@ -1353,10 +1328,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: deck
 
   igor:
@@ -1375,10 +1348,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: igor
 
   front50:
@@ -1400,10 +1371,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: front50
 
   echo:
@@ -1422,10 +1391,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: echo
 
   orca:
@@ -1444,10 +1411,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: orca
 
   rosco:
@@ -1466,10 +1431,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: rosco
 
   fiat:
@@ -1488,10 +1451,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: fiat
     healthcheck:
       test:
@@ -1516,39 +1477,37 @@ services:
         constraints: [node.hostname == k8s2]
     depends_on: *spinnaker-depend
     networks: *allinoneNetwork
-    extra_hosts: *addhost	
+    extra_hosts: *addhost
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: gate
 
-#end of life
-#  monitoring-daemon:
-#    image: us-docker.pkg.dev/spinnaker-community/docker/monitoring-daemon:0.5.0-20180221133510
-#    ports:
-#      - 8228:8008
-#    healthcheck:
-#      disable: true
+    #end of life
+    #  monitoring-daemon:
+    #    image: us-docker.pkg.dev/spinnaker-community/docker/monitoring-daemon:0.5.0-20180221133510
+    #    ports:
+    #      - 8228:8008
+    #    healthcheck:
+    #      disable: true
     #extra_hosts: *addHost
-#    deploy:
-#      mode: replicated
-#      replicas: 1
-#      placement:
-#        constraints: [node.hostname == k8s3]
-#    depends_on: *spinnaker-depend
-#    networks: *allinoneNetwork
-#    logging:
-#      driver: fluentd
-#      options:
-#        fluentd-address: fluentd:24224
-#        fluentd-async-connect: "true"
-#        fluentd-retry-wait: "1s"
-#        fluentd-max-retries: "30"
-#        tag: monitoringDaemon
+  #    deploy:
+  #      mode: replicated
+  #      replicas: 1
+  #      placement:
+  #        constraints: [node.hostname == k8s3]
+  #    depends_on: *spinnaker-depend
+  #    networks: *allinoneNetwork
+  #    logging:
+  #      driver: fluentd
+  #      options:
+  #        fluentd-address: 313.co.kr:24224
+  #        fluentd-async-connect: "true"
+  ##        fluentd-retry-wait: "300s"
+  ##        fluentd-max-retries: "30"
+  #        tag: monitoringDaemon
 
   redis:
     image: redis:4.0.13
@@ -1570,10 +1529,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: redis
 
   redis-commander:
@@ -1592,15 +1549,15 @@ services:
       placement:
         constraints: [node.hostname == k8s1]
     depends_on: *spinnaker-depend
+    healthcheck:
+      disable: true
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: rediscommander
 
   minio:
@@ -1631,43 +1588,37 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: minio
 
-  
+
   middle-proxy:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.6
     ports:
       - 13131:13131
+    volumes:
+      - middle-proxy-volume:/mnt
     deploy:
       mode: replicated
       replicas: 1
       placement:
         constraints: [node.hostname == k8s1]
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:13131/actuator/health"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 5m
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: middleproxy
 
   backend-core:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.19
     ports:
       - 31313:31313
+    volumes:
+      - backend-core-volume:/mnt
     deploy:
       mode: replicated
       replicas: 1
@@ -1678,16 +1629,16 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: backendcore
 
   engine-fire:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.16
     ports:
       - 33333:33333
+    volumes:
+      - engine-fire-volume:/mnt
     deploy:
       mode: replicated
       replicas: 1
@@ -1698,10 +1649,8 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
-        fluentd-retry-wait: "1s"
-        fluentd-max-retries: "30"
         tag: enginefire
 
 
@@ -1719,7 +1668,7 @@ configs:
 
 volumes:
 
-######################################### Global Service #########################################
+  ######################################### Global Service #########################################
   portainer_data:
     driver: local
     driver_opts:
@@ -1762,7 +1711,7 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/prometheus/data"
 
-######################################### ELFK #########################################
+  ######################################### ELFK #########################################
   kibanaconf:
     driver: local
     driver_opts:
@@ -1805,7 +1754,7 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/es-data-02"
 
-######################################### Auth #########################################
+  ######################################### Auth #########################################
 
   keycloak:
     driver: local
@@ -1828,7 +1777,7 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/mysql"
 
-######################################### DevTool #########################################
+  ######################################### DevTool #########################################
 
   pgadminconf:
     driver: local
@@ -1935,7 +1884,7 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/sonar"
 
-######################################### Spinnaker #########################################
+  ######################################### Spinnaker #########################################
 
   rediscommander:
     driver: local
@@ -1993,11 +1942,31 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/spinnaker/minio/data"
 
+  ######################################### Application #########################################
+
+  middle-proxy-volume:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/allinone/app/middle-proxy"
+
+  backend-core-volume:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/allinone/app/backend-core"
+
+  engine-fire-volume:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/allinone/app/engine-fire"
+
+
 networks:
   allinoneNetwork:
     driver: overlay
     attachable: true
-
-#networks:
-#  allinone_allinoneNetwork:
-#    external: true
