@@ -89,21 +89,9 @@ echo "source <(kubectl completion bash)" >> ~/.bashrc
 
 kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
 
-
-
-
-
+//k8s 연결
 kubeadm join 192.168.25.31:6443 --token 516wsb.f7ubkpu109urzibs \
         --discovery-token-ca-cert-hash sha256:1ae5a6f972f6982b4068ce5e96fc46df3dc25c4361fee672afc251777e92a7f6
-
-
-
-
-
-
-
-
-
 
 sudo apt install -y nfs-common net-tools
 
@@ -114,10 +102,9 @@ mount -t nfs -o vers=3 192.168.25.42:/volume1/web /nfs
 timedatectl set-timezone Asia/Seoul
 timedatectl show
 
+//swarm 연결
 docker swarm init --advertise-addr
-
 docker swarm join --token SWMTKN-1-2anx9ctzm3ffwbktlnr501ho6gqr3vb370c5d6anyqws07591f-2r3ywtldirv6o6gcdio24fan4 192.168.25.31:2377
-
 
 #groupadd -g 999 docker
 

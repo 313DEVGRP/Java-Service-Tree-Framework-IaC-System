@@ -22,6 +22,7 @@ services:
       - "313.co.kr:192.168.25.31"
       - "db.313.co.kr:192.168.25.40"
       - "nas.313.co.kr:192.168.25.42"
+      - "ubuntu.313.co.kr:192.168.25.31"
       - "www.313.co.kr:192.168.25.31"
     deploy:
       mode: replicated
@@ -67,6 +68,8 @@ services:
         - "traefik.http.routers.nginx.rule=PathPrefix(`/`)"
         - "traefik.http.routers.nginx.service=nginx"
         - "traefik.http.routers.nginx.entrypoints=web"
+        #- "traefik.http.services.nginx.loadBalancer.sticky.cookie=true"
+        #- "traefik.http.services.nginx.loadBalancer.sticky.cookie.name=nginx_sticky_cookie_session"
         - "traefik.http.services.nginx.loadbalancer.server.port=80"
     logging:
       driver: fluentd
@@ -74,6 +77,26 @@ services:
         fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
         tag: nginx
+
+  apachephp:
+    image: 313devgrp/gnuboard:1.0.0
+    volumes:
+      - phpHome:/var/www/html
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == k8s2]
+    networks: *allinoneNetwork
+    extra_hosts: *addhost
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 313.co.kr:24224
+        fluentd-async-connect: "true"
+        tag: gnuboard
 
   ######################################### Global Service #########################################
 
@@ -104,10 +127,6 @@ services:
   portainer:
     image: portainer/portainer-ce:2.11.0
     command: -H tcp://tasks.agent:9001 --tlsskipverify
-    ports:
-      - "9443:9443"
-      - "9009:9000"
-      - "8008:8000"
     volumes:
       - portainer_data:/data
       - /etc/timezone:/etc/timezone:ro
@@ -128,20 +147,10 @@ services:
 
   grafana:
     image: portainer/template-swarm-monitoring:grafana-9.5.2
-    ports:
-      - target: 3000
-        published: 3000
-        protocol: tcp
-        mode: ingress
     deploy:
       replicas: 1
-      #placement:
-      #  constraints: [node.hostname == k8s1]
-      #restart_policy:
-      #  condition: on-failure
-      #placement:
-      #  constraints:
-      #    - node.role == manager
+      placement:
+        constraints: [node.hostname == k8s1]
     volumes:
       - type: volume
         source: grafana-data
@@ -155,7 +164,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=qwe123
       - GF_USERS_ALLOW_SIGN_UP=false
-      #- GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
       #- GF_SECURITY_ALLOW_EMBEDDING=true
     networks: *allinoneNetwork
     extra_hosts: *addhost
@@ -175,13 +184,8 @@ services:
       - '--storage.tsdb.retention.time=7d'
     deploy:
       replicas: 1
-      #placement:
-      #  constraints: [node.hostname == k8s1]
-      #restart_policy:
-      #  condition: on-failure
-      #placement:
-      #  constraints:
-      #    - node.role == manager
+      placement:
+        constraints: [node.hostname == k8s1]
     #      resources:
     #            limits:
     #              cpus: "0.50"
@@ -209,11 +213,6 @@ services:
     command: -logtostderr -docker_only
     deploy:
       mode: global
-    #      resources:
-    #        limits:
-    #          memory: 128M
-    #        reservations:
-    #          memory: 64M
     volumes:
       - type: bind
         source: /
@@ -255,11 +254,6 @@ services:
       - '--no-collector.ipvs'
     deploy:
       mode: global
-    #      resources:
-    #        limits:
-    #          memory: 128M
-    #        reservations:
-    #          memory: 64M
     volumes:
       - type: bind
         source: /
@@ -620,8 +614,6 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:${ELKVERSION:-7.17.13}
     hostname: kibana
-    ports:
-      - 5601:5601
     volumes:
       - kibanaconf:/usr/share/kibana/config
       - /etc/timezone:/etc/timezone:ro
@@ -699,9 +691,6 @@ services:
 
   fluentd:
     image: 313.co.kr:5550/313devgrp/fluentd:3.1.5
-    ports:
-      - 24224:24224
-      - 24224:24224/udp
     configs:
       - source: fluentd.conf
         target: /fluentd/etc/fluent.conf
@@ -711,11 +700,6 @@ services:
       replicas: 1
       placement:
         constraints: [node.hostname == k8s3]
-    #      resources:
-    #        limits:
-    #          memory: 1024M
-    #        reservations:
-    #          memory: 512M
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging: *allinoneLogging
@@ -723,11 +707,6 @@ services:
   ######################################### Auth #########################################
   guacd:
     image: guacamole/guacd
-    ports:
-      - 4822:4822
-    deploy: &auth-deploy
-      mode: replicated
-      replicas: 1
     deploy:
       mode: replicated
       replicas: 1
@@ -744,8 +723,6 @@ services:
 
   guacamole:
     image: guacamole/guacamole:1.4.0
-    ports:
-      - 8282:8080
     depends_on:
       - mysql
     environment:
@@ -806,8 +783,6 @@ services:
 
   phpmyadmin:
     image: 313devgrp/phpmyadmin:5.2.1
-    ports:
-      - 33306:80
     environment:
       - PMA_ARBITRARY=1
     deploy:
@@ -829,6 +804,10 @@ services:
   # GRANT ALL PRIVILEGES ON keycloakdb.* TO 'mysqluser'@'%';
   # create database gnuboard character set utf8 collate utf8_bin;
   # GRANT ALL PRIVILEGES ON gnuboard.* TO 'mysqluser'@'%';
+
+  # create database gnuboard5 character set utf8 collate utf8_bin;
+  # GRANT ALL PRIVILEGES ON gnuboard5.* TO 'mysqluser'@'%';
+
   # create database aRMS character set utf8 collate utf8_bin;
   # GRANT ALL PRIVILEGES ON aRMS.* TO 'mysqluser'@'%';
   # create database sonarqube character set utf8 collate utf8_bin;
@@ -1044,8 +1023,6 @@ services:
 
   postgres:
     image: postgres:12.15
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: postgresuser
       POSTGRES_PASSWORD: postgresuserpass
@@ -1070,8 +1047,6 @@ services:
 
   pgadmin:
     image: dockage/phppgadmin:latest
-    ports:
-      - "54321:80"
     environment:
       - PHP_PG_ADMIN_SERVER_DESC=PostgreSQL
       - PHP_PG_ADMIN_SERVER_HOST=postgres
@@ -1191,28 +1166,6 @@ services:
         fluentd-address: 313.co.kr:24224
         fluentd-async-connect: "true"
         tag: zipkinDependencies
-
-  gnuboard:
-    image: 313devgrp/gnuboard:1.0.0
-    ports:
-      - "888:80"
-    volumes:
-      - gnuboard:/var/www/html
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints: [node.hostname == k8s2]
-    networks: *allinoneNetwork
-    extra_hosts: *addhost
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: 313.co.kr:24224
-        fluentd-async-connect: "true"
-        tag: gnuboard
 
   jrebel:
     image: 313devgrp/jrebel:2018.07.12
@@ -1541,8 +1494,6 @@ services:
     image: rediscommander/redis-commander:latest
     environment:
       - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "8786:8081"
     volumes:
       - rediscommander:/redis-commander
       - /etc/timezone:/etc/timezone:ro
@@ -1598,7 +1549,7 @@ services:
 
 
   middle-proxy:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.7
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.10
     ports:
       - 13131:13131
     volumes:
@@ -1618,7 +1569,7 @@ services:
         tag: middleproxy
 
   backend-core:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.36
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.70
     ports:
       - 31313:31313
     volumes:
@@ -1638,7 +1589,7 @@ services:
         tag: backendcore
 
   engine-fire:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.26
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.85
     ports:
       - 33333:33333
     volumes:
@@ -1693,6 +1644,13 @@ volumes:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/nginx"
+
+  phpHome:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
+      device: ":${NFSPATH:-/nfspath}/allinone/phpHome"
 
   grafana-data:
     driver: local
@@ -1874,13 +1832,6 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/fecru"
 
-  gnuboard:
-    driver: local
-    driver_opts:
-      type: "nfs"
-      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/gnuboard"
-
   sonarHome:
     driver: local
     driver_opts:
@@ -1895,7 +1846,7 @@ volumes:
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/spinnaker/redis-commander"
+      device: ":${NFSPATH:-/nfspath}/allinone/redis-commander"
 
   halyardVolume:
     driver: local
@@ -1909,14 +1860,14 @@ volumes:
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/spinnaker/redis-conf"
+      device: ":${NFSPATH:-/nfspath}/allinone/redis/redis-conf"
 
   redis-data:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/spinnaker/redis-data"
+      device: ":${NFSPATH:-/nfspath}/allinone/redis/redis-data"
 
   config-spinnaker-volume:
     driver: local
@@ -1937,14 +1888,14 @@ volumes:
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/spinnaker/minio/config"
+      device: ":${NFSPATH:-/nfspath}/allinone/minio/config"
 
   minio-data-volume:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/spinnaker/minio/data"
+      device: ":${NFSPATH:-/nfspath}/allinone/minio/data"
 
   ######################################### Application #########################################
 
