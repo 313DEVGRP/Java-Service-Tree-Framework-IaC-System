@@ -40,7 +40,10 @@ cat <<EOF | sudo tee /etc/docker/daemon.json
   "log-opts": {
     "max-size": "100m"
   },
-  "storage-driver": "overlay2"
+  "storage-driver": "overlay2",
+  "insecure-registries" : [
+    "313.co.kr:5550"
+  ]
 }
 EOF
 

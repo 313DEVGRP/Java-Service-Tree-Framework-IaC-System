@@ -9,7 +9,10 @@ services:
   traefik:
     image: traefik:v2.10.4
     ports:
-      - 80:80
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
@@ -43,17 +46,15 @@ services:
       - "--api.insecure=true"
       - "--providers.docker.swarmMode=true"
       - "--providers.docker.exposedbydefault=false"
-      # Configure entrypoint
       - "--entrypoints.web.address=:80"
-      # Logging
       - "--accesslog"
       - "--log.level=INFO"
 
   nginx:
     image: nginx:1.19.10
     volumes:
-      - nginxConf:/etc/nginx
-      - nginxWWW:/usr/share/nginx/html
+      - nginx-conf:/etc/nginx
+      - nginx-www:/usr/share/nginx/html
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     networks: &allinoneNetwork
@@ -74,29 +75,29 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: nginx
 
   apachephp:
-    image: 313devgrp/gnuboard:1.0.0
+    image: 313.co.kr:5550/313devgrp/apachephp:3.1.3
     volumes:
-      - phpHome:/var/www/html
+      - apachephp-volume:/var/www/html
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     deploy:
       mode: replicated
       replicas: 1
       placement:
-        constraints: [node.hostname == k8s2]
+        constraints: [node.hostname == k8s1]
     networks: *allinoneNetwork
     extra_hosts: *addhost
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
-        tag: gnuboard
+        tag: apachephp
 
   ######################################### Global Service #########################################
 
@@ -120,7 +121,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: portaineragent
 
@@ -128,7 +129,7 @@ services:
     image: portainer/portainer-ce:2.11.0
     command: -H tcp://tasks.agent:9001 --tlsskipverify
     volumes:
-      - portainer_data:/data
+      - portainer-volume:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     networks: *allinoneNetwork
@@ -141,7 +142,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: portainer
 
@@ -171,7 +172,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: grafana
 
@@ -186,16 +187,9 @@ services:
       replicas: 1
       placement:
         constraints: [node.hostname == k8s1]
-    #      resources:
-    #            limits:
-    #              cpus: "0.50"
-    #              memory: 2048M
-    #            reservations:
-    #              cpus: "0.10"
-    #              memory: 1024M
     volumes:
       - type: volume
-        source: prometheus-data
+        source: prometheus-volume
         target: /prometheus
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -204,7 +198,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: prometheus
 
@@ -241,7 +235,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: cadvisor
 
@@ -274,7 +268,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: nodeexporter
 
@@ -595,8 +589,6 @@ services:
       - HQ_DEBUG=True
       - HQ_ENABLE_SSL=False
       - HQ_VERIFY_CERTS=False
-    ports:
-      - 5050:5000
     volumes: *allinoneVolume
     networks: *allinoneNetwork
     deploy:
@@ -607,7 +599,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: elastichq
 
@@ -615,7 +607,7 @@ services:
     image: docker.elastic.co/kibana/kibana:${ELKVERSION:-7.17.13}
     hostname: kibana
     volumes:
-      - kibanaconf:/usr/share/kibana/config
+      - kibana-volume:/usr/share/kibana/config
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     environment:
@@ -633,7 +625,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: kibana
 
@@ -663,7 +655,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: logstash
 
@@ -685,7 +677,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: apmserver
 
@@ -717,7 +709,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: guacd
 
@@ -741,7 +733,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: guacamole
 
@@ -763,8 +755,7 @@ services:
       - mysql
       - traefik
     volumes:
-      - keycloak:/opt/jboss/keycloak/standalone/deployments
-      - keycloakThemes:/opt/jboss/keycloak/themes
+      - keycloak-volume:/opt/jboss/keycloak/themes
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     deploy:
@@ -777,7 +768,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: keycloak
 
@@ -795,15 +786,15 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: phpmyadmin
 
 
   # create database keycloakdb character set utf8 collate utf8_bin;
   # GRANT ALL PRIVILEGES ON keycloakdb.* TO 'mysqluser'@'%';
-  # create database gnuboard character set utf8 collate utf8_bin;
-  # GRANT ALL PRIVILEGES ON gnuboard.* TO 'mysqluser'@'%';
+  # create database matomo character set utf8 collate utf8_bin;
+  # GRANT ALL PRIVILEGES ON matomo.* TO 'mysqluser'@'%';
 
   # create database gnuboard5 character set utf8 collate utf8_bin;
   # GRANT ALL PRIVILEGES ON gnuboard5.* TO 'mysqluser'@'%';
@@ -905,7 +896,7 @@ services:
       --binlog-ignore-db=sys
       --log_slave_updates=1
     volumes:
-      - mysql:/data
+      - mysql-volume:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     deploy:
@@ -918,7 +909,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: mysql
 
@@ -926,8 +917,6 @@ services:
 
   jira:
     image: 313devgrp/jira:12.14
-    ports:
-      - "48080:48080"
     volumes:
       - jiraHome:/web/atlassian-jira-5.2.11-standalone/home
       - jiraServer:/web/atlassian-jira-5.2.11-standalone/bin
@@ -943,14 +932,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: jira
 
   confluence:
     image: 313devgrp/confluence:12.14
-    ports:
-      - "58090:58090"
     volumes:
       - confluenceHome:/web/atlassian-confluence-4.3.7/data
       - /etc/timezone:/etc/timezone:ro
@@ -965,14 +952,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: confluence
 
   fecru:
     image: 313devgrp/fecru:13.02
-    ports:
-      - "8060:8060"
     volumes:
       - fecruHome:/web/fecru-3.3.3/var
       - /etc/timezone:/etc/timezone:ro
@@ -987,14 +972,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: fecru
 
   sonarqube:
     image: sonarqube:9.9.1-community
-    ports:
-      - "9090:9000"
     environment:
       #SONAR_WEB_CONTEXT: /sonar - sonarqubeConf 처리
       SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonarqube
@@ -1017,7 +1000,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: sonarqube
 
@@ -1041,7 +1024,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: postgres
 
@@ -1087,7 +1070,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: pgadmin
 
@@ -1113,14 +1096,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: jenkins
 
   zipkin:
     image: openzipkin/zipkin:2.23.16
-    ports:
-      - 9411:9411
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -1139,7 +1120,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: zipkin
 
@@ -1163,7 +1144,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: zipkinDependencies
 
@@ -1184,12 +1165,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: jrebel
 
   nexus:
-    image: sonatype/nexus3:3.59.0
+    image: sonatype/nexus3:3.62.0
     ports:
       - "8081:8081"
       - "5550:5550"
@@ -1199,7 +1180,7 @@ services:
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-      - nexusData:/nexus-data
+      - nexus-volume:/nexus-data
     deploy:
       mode: replicated
       replicas: 1
@@ -1210,7 +1191,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: nexus
 
@@ -1237,7 +1218,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: halyard
 
@@ -1260,7 +1241,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: clouddriver
 
@@ -1285,7 +1266,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: deck
 
@@ -1305,7 +1286,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: igor
 
@@ -1328,7 +1309,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: front50
 
@@ -1348,7 +1329,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: echo
 
@@ -1368,7 +1349,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: orca
 
@@ -1388,7 +1369,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: rosco
 
@@ -1408,7 +1389,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: fiat
     healthcheck:
@@ -1438,7 +1419,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: gate
 
@@ -1460,7 +1441,7 @@ services:
   #    logging:
   #      driver: fluentd
   #      options:
-  #        fluentd-address: 313.co.kr:24224
+  #        fluentd-address: fluentd:24224
   #        fluentd-async-connect: "true"
   ##        fluentd-retry-wait: "300s"
   ##        fluentd-max-retries: "30"
@@ -1486,7 +1467,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: redis
 
@@ -1511,7 +1492,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: rediscommander
 
@@ -1543,13 +1524,13 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: minio
 
 
   middle-proxy:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.10
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.3
     ports:
       - 13131:13131
     volumes:
@@ -1564,12 +1545,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: middleproxy
 
   backend-core:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.70
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.3
     ports:
       - 31313:31313
     volumes:
@@ -1584,14 +1565,14 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: backendcore
 
   engine-fire:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.85
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.3
     ports:
-      - 33333:33333
+      - 33333:33333 ##직접 호출 케이스 : 배치 작업
     volumes:
       - engine-fire-volume:/mnt
     deploy:
@@ -1604,7 +1585,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: 313.co.kr:24224
+        fluentd-address: fluentd:24224
         fluentd-async-connect: "true"
         tag: enginefire
 
@@ -1624,33 +1605,33 @@ configs:
 volumes:
 
   ######################################### Global Service #########################################
-  portainer_data:
+  portainer-volume:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/portainer/data"
 
-  nginxWWW:
+  nginx-www:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":/volume1/web"
 
-  nginxConf:
+  nginx-conf:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/nginx"
 
-  phpHome:
+  apachephp-volume:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/phpHome"
+      device: ":${NFSPATH:-/nfspath}/allinone/apachephp"
 
   grafana-data:
     driver: local
@@ -1666,7 +1647,7 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/grafana/etc"
 
-  prometheus-data:
+  prometheus-volume:
     driver: local
     driver_opts:
       type: "nfs"
@@ -1674,7 +1655,7 @@ volumes:
       device: ":${NFSPATH:-/nfspath}/allinone/prometheus/data"
 
   ######################################### ELFK #########################################
-  kibanaconf:
+  kibana-volume:
     driver: local
     driver_opts:
       type: "nfs"
@@ -1718,21 +1699,14 @@ volumes:
 
   ######################################### Auth #########################################
 
-  keycloak:
+  keycloak-volume:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/keycloak"
 
-  keycloakThemes:
-    driver: local
-    driver_opts:
-      type: "nfs"
-      o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/keycloakThemes"
-
-  mysql:
+  mysql-volume:
     driver: local
     driver_opts:
       type: "nfs"
@@ -1790,12 +1764,12 @@ volumes:
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
       device: ":${NFSPATH:-/nfspath}/allinone/sonarqube/logs"
 
-  nexusData:
+  nexus-volume:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/nexusData"
+      device: ":${NFSPATH:-/nfspath}/allinone/nexus"
 
   jenkinsHome:
     driver: local
@@ -1809,14 +1783,14 @@ volumes:
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/jira"
+      device: ":${NFSPATH:-/nfspath}/allinone/jira/home"
 
   jiraServer:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/jira_server"
+      device: ":${NFSPATH:-/nfspath}/allinone/jira/server"
 
   confluenceHome:
     driver: local
