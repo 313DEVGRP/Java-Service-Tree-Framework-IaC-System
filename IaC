@@ -61,7 +61,7 @@ net.bridge.bridge-nf-call-iptables = 1
 EOF
 sudo sysctl --system
 
-
+-----------------------K8S----------------------------
 sudo apt-get update
 sudo apt-get install -y apt-transport-https ca-certificates curl
 
@@ -71,10 +71,6 @@ echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.
 sudo apt-get update
 sudo apt-get install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-
-
-
 
 sudo systemctl daemon-reload
 sudo systemctl restart kubelet
@@ -96,11 +92,20 @@ kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/we
 kubeadm join 192.168.25.31:6443 --token 516wsb.f7ubkpu109urzibs \
         --discovery-token-ca-cert-hash sha256:1ae5a6f972f6982b4068ce5e96fc46df3dc25c4361fee672afc251777e92a7f6
 
+-----------------------K8S----------------------------
+
+-----------------------NFS----------------------------
+apt-get install nfs-common nfs-kernel-server rpcbind portmap
 sudo apt install -y nfs-common net-tools
 
 mkdir /nfs
+
+
 mount -t nfs -o vers=3 192.168.25.42:/volume1/web /nfs
+mount 172.31.2.2:/mnt/data /public_data
 192.168.25.42:/volume1/web      /nfs    nfs     defaults        0       0
+
+/nfs 172.31.0.0/16(rw,sync,no_root_squash,no_all_squash,no_subtree_check)
 
 timedatectl set-timezone Asia/Seoul
 timedatectl show
@@ -111,9 +116,11 @@ docker swarm join --token SWMTKN-1-2anx9ctzm3ffwbktlnr501ho6gqr3vb370c5d6anyqws0
 
 #groupadd -g 999 docker
 
+
+------------------------------- ELK --------------------------------------
 #https://github.com/jakubhajek/elasticsearch-docker-swarm/blob/master/stack-elastic.yml
 # elasticsearch coordinating node
-/etc/security/limits.conf
+nano /etc/security/limits.conf
 * hard memlock unlimited
 * soft memlock unlimited
 * hard nofile 65536
@@ -125,12 +132,12 @@ vim /etc/rc.local
 echo never > /sys/kernel/mm/transparent_hugepage/enabled
 exit 0
 
-/etc/sysctl.conf
+nano /etc/sysctl.conf
 vm.max_map_count=262144
 vm.overcommit_memory=1
 net.core.somaxconn=1024
 
-/lib/systemd/system/docker.service
+nano /lib/systemd/system/docker.service
 LimitMEMLOCK=infinity
 
 #sudo adduser allinone --disabled-password

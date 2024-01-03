@@ -1,8 +1,13 @@
 version: '3.6'
 
-#hosts ( 127.0.0.1 313.co.kr )
-#docker login 313.co.kr:5550 ( admin / qwe123 )
-#ln -s /nfs/DockerPV/allinone/jenkins_agent/jenkins_home_3 jenkins_home
+# hosts ( 127.0.0.1 313.co.kr )
+# docker login 313.co.kr:5550 ( admin / qwe123 )
+
+# docker volume rm $(docker volume ls -q)
+# ln -s /nfs/allinone/jenkins/agent/jenkins_home_3 jenkins_home
+# nohup java -jar agent.jar -jnlpUrl http://www.313.co.kr/jenkins/computer/remote%2Dnode3/jenkins-agent.jnlp -secret f97a1cc6daf82350716b1a02f8e7ddb50b4b4a93513053167ddd93ab27815554 -workDir "/jenkins_home" &
+
+# NFSSERVER=192.168.25.42 NFSPATH=/volume1/web ELKVERSION=7.17.13 docker stack deploy -c allinone.yml allinone
 
 services:
 
@@ -11,6 +16,10 @@ services:
     ports:
       - target: 80
         published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
         protocol: tcp
         mode: host
     volumes:
@@ -49,6 +58,11 @@ services:
       - "--entrypoints.web.address=:80"
       - "--accesslog"
       - "--log.level=INFO"
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "100m"
 
   nginx:
     image: nginx:1.19.10
@@ -57,8 +71,7 @@ services:
       - nginx-www:/usr/share/nginx/html
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-    networks: &allinoneNetwork
-      - allinoneNetwork
+    networks: *allinoneNetwork
     extra_hosts: *addhost
     depends_on:
       - keycloak
@@ -1530,7 +1543,7 @@ services:
 
 
   middle-proxy:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:3.13.3
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-middle-proxy:23.12.2
     ports:
       - 13131:13131
     volumes:
@@ -1550,7 +1563,7 @@ services:
         tag: middleproxy
 
   backend-core:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:3.13.3
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-backend-core:23.12.45
     ports:
       - 31313:31313
     volumes:
@@ -1570,7 +1583,7 @@ services:
         tag: backendcore
 
   engine-fire:
-    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:3.13.3
+    image: 313.co.kr:5550/313devgrp/java-service-tree-framework-engine-fire:23.12.31
     ports:
       - 33333:33333 ##직접 호출 케이스 : 배치 작업
     volumes:
@@ -1617,14 +1630,14 @@ volumes:
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":/volume1/web"
+      device: ":${NFSPATH:-/nfspath}/allinone/nginx/www"
 
   nginx-conf:
     driver: local
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/nginx"
+      device: ":${NFSPATH:-/nfspath}/allinone/nginx/conf"
 
   apachephp-volume:
     driver: local
@@ -1776,7 +1789,7 @@ volumes:
     driver_opts:
       type: "nfs"
       o: "addr=${NFSSERVER:-1.2.3.4},nolock,soft,rw,sync"
-      device: ":${NFSPATH:-/nfspath}/allinone/jenkins"
+      device: ":${NFSPATH:-/nfspath}/allinone/jenkins/server"
 
   jiraHome:
     driver: local
